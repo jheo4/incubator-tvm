@@ -144,6 +144,7 @@ class SRAM {
   using DType = typename std::aligned_storage<kElemBytes, kElemBytes>::type;
   SRAM() {
     data_ = new DType[kMaxNumElem];
+    printf("SRAM created... \n");
   }
   ~SRAM() {
     delete [] data_;
@@ -281,6 +282,7 @@ class Device {
   int Run(vta_phy_addr_t insn_phy_addr,
           uint32_t insn_count,
           uint32_t wait_cycles) {
+    printf("[RUN] ADDR:%u InsnCount:%u \n", insn_phy_addr, insn_count);
     VTAGenericInsn* insn = static_cast<VTAGenericInsn*>(
         dram_->GetAddr(insn_phy_addr));
     finish_counter_ = 0;
@@ -505,10 +507,13 @@ TVM_REGISTER_GLOBAL("vta.simulator.profiler_debug_mode")
 }  // namespace vta
 
 void* VTAMemAlloc(size_t size, int cached) {
-  return vta::sim::DRAM::Global()->Alloc(size);
+  void *buf = vta::sim::DRAM::Global()->Alloc(size);
+  printf("\t[VTAMemAlloc] %p size:%d \n", buf, size);
+  return buf;
 }
 
 void VTAMemFree(void* buf) {
+  printf("\t[VTAMemFree] %p \n", buf);
   vta::sim::DRAM::Global()->Free(buf);
 }
 
@@ -517,17 +522,21 @@ vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
 }
 
 void VTAMemCopyFromHost(void* dst, const void* src, size_t size) {
+  printf("\t[HOST %p --> FPGA %p] size:%d\n", dst, src, size);
   memcpy(dst, src, size);
 }
 
 void VTAMemCopyToHost(void* dst, const void* src, size_t size) {
+  printf("\t[FPGA %p --> HOST %p] size:%d\n", dst, src, size);
   memcpy(dst, src, size);
 }
 
 void VTAFlushCache(void* vir_addr, vta_phy_addr_t phy_addr, int size) {
+  printf("\t [VTAFlushCache]\n");
 }
 
 void VTAInvalidateCache(void* vir_addr, vta_phy_addr_t phy_addr, int size) {
+  printf("\t [VTAInvalidateCache]\n");
 }
 
 VTADeviceHandle VTADeviceAlloc() {
