@@ -26,9 +26,16 @@ include $(XILINX_PROVIDED)/utils.mk
 include $(XILINX_PROVIDED)/xcl2/xcl2.mk
 include $(XILINX_PROVIDED)/opencl/opencl.mk
 
+VTA_CONFIG := $(realpath $($(CURDIR)/../../config/vta_config.py))
+
 CXXFLAGS += $(xcl2_CXXFLAGS)
 CXXFLAGS += $(opencl_CXXFLAGS) -Wall -O0 -g -std=c++11
 CXXFLAGS += -fmessage-length=0
+# to use c defines in the config script
+# CXXFLAGS += $(shell python ${VTA_CONFIG} --cflags)
+CXXFLAGS += -DINP_RESHAPE_FACTOR 2 \
+	    -DOUT_RESHAPE_FACTOR 2 \
+	    -DWGT_RESHAPE_FACTOR 2
 
 LDFLAGS += $(xcl2_LDFALGS)
 LDFLAGS += $(opencl_LDFLAGS)

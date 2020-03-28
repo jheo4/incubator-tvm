@@ -165,10 +165,6 @@ void load(
     hls::stream<bool> &l2g_dep_queue,
     bus_T inp_mem[VTA_INP_BUFF_DEPTH][INP_MAT_AXI_RATIO],
     bus_T wgt_mem[VTA_WGT_BUFF_DEPTH][WGT_MAT_AXI_RATIO]) {
-    #pragma HLS INTERFACE bram port = wgt_mem
-    #pragma HLS INTERFACE bram port = inp_mem
-    #pragma HLS RESOURCE variable = inp_mem core = RAM_1P
-    #pragma HLS RESOURCE variable = wgt_mem core = RAM_1P
 
   // Pop load instruction
   insn_T raw_insn = load_queue.read();
@@ -409,12 +405,6 @@ void compute(
     bus_T inp_mem[VTA_INP_BUFF_DEPTH][INP_MAT_AXI_RATIO],
     bus_T wgt_mem[VTA_WGT_BUFF_DEPTH][WGT_MAT_AXI_RATIO],
     bus_T out_mem[VTA_ACC_BUFF_DEPTH][OUT_MAT_AXI_RATIO]) {
-    #pragma HLS INTERFACE bram port = inp_mem
-    #pragma HLS INTERFACE bram port = wgt_mem
-    #pragma HLS INTERFACE bram port = out_mem
-    #pragma HLS RESOURCE variable = inp_mem core = RAM_1P
-    #pragma HLS RESOURCE variable = wgt_mem core = RAM_1P
-    #pragma HLS RESOURCE variable = out_mem core = RAM_1P
 
   // Micro-op storage
   static uop_T uop_mem[VTA_UOP_BUFF_DEPTH];
@@ -487,8 +477,6 @@ void store(
   hls::stream<bool> &g2s_dep_queue,
   hls::stream<bool> &s2g_dep_queue,
   bus_T out_mem[VTA_ACC_BUFF_DEPTH][OUT_MAT_AXI_RATIO]) {
-  #pragma HLS INTERFACE bram port = out_mem
-  #pragma HLS RESOURCE variable = out_mem core = RAM_1P
 
   // Pop store instruction
   insn_T raw_insn = store_queue.read();
@@ -541,27 +529,30 @@ void vta(
 #pragma HLS  INTERFACE m_axi  port=outputs  offset=slave  bundle=output_port
 #pragma HLS  INTERFACE s_axilite  port=return  bundle=CONTROL_BUS
   // Instatiate physical instruction queues
-  hls::stream<insn_T> load_queue("load_q");
-  hls::stream<insn_T> gemm_queue("gemm_q");
-  hls::stream<insn_T> store_queue("store_q");
-#pragma HLS   STREAM   variable=load_queue  depth=8
-#pragma HLS   STREAM   variable=gemm_queue  depth=8
-#pragma HLS   STREAM   variable=store_queue  depth=8
+  static hls::stream<insn_T> load_queue("load_q");
+PRAGMA_HLS(stream variable=load_queue depth=STREAM_IN_DEPTH)
+  static hls::stream<insn_T> gemm_queue("gemm_q");
+PRAGMA_HLS(stream variable=gemm_queue depth=STREAM_IN_DEPTH)
+  static hls::stream<insn_T> store_queue("store_q");
+PRAGMA_HLS(stream variable=store_queue depth=STREAM_IN_DEPTH)
 
   // Dependence queues
-  hls::stream<bool> l2g_dep_queue("l2g_dep_q");
-  hls::stream<bool> s2g_dep_queue("s2g_dep_q");
-  hls::stream<bool> g2l_dep_queue("g2l_dep_q");
-  hls::stream<bool> g2s_dep_queue("g2s_dep_q");
-#pragma HLS   STREAM   variable=l2g_dep_queue  depth=8
-#pragma HLS   STREAM   variable=s2g_dep_queue  depth=8
-#pragma HLS   STREAM   variable=g2l_dep_queue  depth=8
-#pragma HLS   STREAM   variable=g2s_dep_queue  depth=8
+  static hls::stream<bool> l2g_dep_queue("l2g_dep_q");
+PRAGMA_HLS(stream variable=l2g_dep_q depth=STREAM_IN_DEPTH)
+  static hls::stream<bool> s2g_dep_queue("s2g_dep_q");
+PRAGMA_HLS(stream variable=s2g_dep_queue depth=STREAM_IN_DEPTH)
+  static hls::stream<bool> g2l_dep_queue("g2l_dep_q");
+PRAGMA_HLS(stream variable=g2l_dep_queue depth=STREAM_IN_DEPTH)
+  static hls::stream<bool> g2s_dep_queue("g2s_dep_q");
+PRAGMA_HLS(stream variable=g2s_dep_queue depth=STREAM_IN_DEPTH)
 
   // Instantiate memories
   bus_T inp_mem[VTA_INP_BUFF_DEPTH][INP_MAT_AXI_RATIO];
+PRAGMA_HLS(array_reshape variable=inp_mem block factor=2 dim=INP_RESHAPE_FACTOR)
   bus_T wgt_mem[VTA_WGT_BUFF_DEPTH][WGT_MAT_AXI_RATIO];
+PRAGMA_HLS(array_reshape variable=wgt_mem block factor=2 dim=WGT_RESHAPE_FACTOR)
   bus_T out_mem[VTA_ACC_BUFF_DEPTH][OUT_MAT_AXI_RATIO];
+PRAGMA_HLS(array_reshape variable=out_mem block factor=2 dim=OUT_RESHAPE_FACTOR)
 
   uint32_t done = 0;
 #pragma HLS dataflow
