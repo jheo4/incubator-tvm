@@ -107,7 +107,12 @@ elseif(PYTHON)
       target_include_directories(vta PUBLIC
         "/usr/local/intelFPGA_lite/18.1/embedded/ds-5/sw/gcc/arm-linux-gnueabihf/include")
     elseif(${VTA_TARGET} STREQUAL "vitis")  # Vitis rules
-      
+      set(HOST_ARCH x86)
+      set_vitis(${USE_VTA_FPGA})
+      if(_set_vitis)
+        target_include_directories(vta PUBLIC ${VITIS_OPENCL_INCLUDE})
+        target_include_directories(vta PUBLIC ${VITIS_VIVADO_INCLUDE})
+      endif()
     endif()
   endif()
 

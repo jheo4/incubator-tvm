@@ -3,6 +3,7 @@ project(tvm C CXX)
 
 # Utility functions
 include(cmake/util/Util.cmake)
+include(cmake/util/SetVitis.cmake)
 include(cmake/util/FindCUDA.cmake)
 include(cmake/util/FindVulkan.cmake)
 include(cmake/util/FindLLVM.cmake)
