@@ -89,6 +89,8 @@ elseif(PYTHON)
       find_library(__cma_lib NAMES cma PATH /usr/lib)
     elseif(${VTA_TARGET} STREQUAL "de10nano")  # DE10-Nano rules
       file(GLOB FPGA_RUNTIME_SRCS vta/src/de10nano/*.cc vta/src/*.cc)
+    elseif(${VTA_TARGET} STREQUAL "vitis") # Vitis rules
+      file(GLOB FPGA_RUNTIME_SRCS vta/src/vitis/*.cc)
     endif()
     # Target lib: vta
     add_library(vta SHARED ${FPGA_RUNTIME_SRCS})
@@ -104,6 +106,13 @@ elseif(PYTHON)
       target_compile_definitions(vta PUBLIC VTA_MAX_XFER=2097152) # (1<<21)
       target_include_directories(vta PUBLIC
         "/usr/local/intelFPGA_lite/18.1/embedded/ds-5/sw/gcc/arm-linux-gnueabihf/include")
+    elseif(${VTA_TARGET} STREQUAL "vitis")  # Vitis rules
+      set(HOST_ARCH x86)
+      set_vitis(${USE_VTA_FPGA})
+      if(_set_vitis)
+        target_include_directories(vta PUBLIC ${VITIS_OPENCL_INCLUDE})
+        target_include_directories(vta PUBLIC ${VITIS_VIVADO_INCLUDE})
+      endif()
     endif()
   endif()
 
