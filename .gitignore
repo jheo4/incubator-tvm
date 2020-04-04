@@ -232,3 +232,10 @@ conda/pkg
 # antlr files
 *.tokens
 *.interp
+
+# vitis files
+vta/hardware/vitis/compile_flags.txt
+vta/hardware/vitis/build
+vta/hardware/vitis/temp*
+vta/hardware/vitis/*.log
+vta/hardware/vitis/.Xil
