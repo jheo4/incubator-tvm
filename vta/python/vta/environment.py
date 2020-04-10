@@ -235,6 +235,8 @@ class Environment(object):
             return "llvm -target=aarch64-linux-gnu"
         if self.TARGET in ["sim", "tsim"]:
             return "llvm"
+        if self.TARGET in ["vitis"]:
+            return "llvm"
         raise ValueError("Unknown target %s" % self.TARGET)
 
     @property

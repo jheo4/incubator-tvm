@@ -48,12 +48,19 @@ def pynq_bitstream_program(bitstream_path):
     bitstream = Bitstream(bitstream_path)
     bitstream.download()
 
+def vitis_bitstream_program(bitstream_path):
+    print("\tbitstream path: ", bitstream_path)
+    return
+
 def bitstream_program(target, bitstream):
+    print("\t target: ", target)
     if target in ['pynq', 'ultra96']:
         pynq_bitstream_program(bitstream)
     elif target in ['sim', 'tsim']:
         # In simulation, bit stream programming is a no-op
         return
+    elif target in ['vitis']:
+        vitis_bitstream_program(bitstream)
     else:
         raise RuntimeError("Unknown target {}".format(target))
 
