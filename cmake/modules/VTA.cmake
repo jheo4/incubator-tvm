@@ -40,22 +40,44 @@ elseif(PYTHON)
   # Fast simulator driver build
   if(USE_VTA_FSIM)
     # Add fsim driver sources
+    #file(GLOB FSIM_RUNTIME_SRCS vta/src/*.cc)
+    #list(APPEND FSIM_RUNTIME_SRCS vta/src/sim/sim_driver.cc)
+    #list(APPEND FSIM_RUNTIME_SRCS vta/src/vmem/virtual_memory.cc vta/src/vmem/virtual_memory.h)
+    #list(APPEND FSIM_RUNTIME_SRCS vta/src/sim/sim_tlpp.cc)
+    # Target lib: vta_fsim
+    #add_library(vta_fsim SHARED ${FSIM_RUNTIME_SRCS})
+    #target_include_directories(vta_fsim PUBLIC vta/include)
+    #foreach(__def ${VTA_DEFINITIONS})
+    #  string(SUBSTRING ${__def} 3 -1 __strip_def)
+    #  target_compile_definitions(vta_fsim PUBLIC ${__strip_def})
+    #endforeach()
+    #include_directories("vta/include")
+    #if(APPLE)
+    #  set_target_properties(vta_fsim PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+    #endif(APPLE)
+    #target_compile_definitions(vta_fsim PUBLIC USE_FSIM_TLPP)
+
+    # Add fsim driver sources
     file(GLOB FSIM_RUNTIME_SRCS vta/src/*.cc)
-    list(APPEND FSIM_RUNTIME_SRCS vta/src/sim/sim_driver.cc)
-    list(APPEND FSIM_RUNTIME_SRCS vta/src/vmem/virtual_memory.cc vta/src/vmem/virtual_memory.h)
-    list(APPEND FSIM_RUNTIME_SRCS vta/src/sim/sim_tlpp.cc)
+    list(APPEND FSIM_RUNTIME_SRCS vta/src/vitis/vitis_driver.cc)
+    list(APPEND FSIM_RUNTIME_SRCS vta/src/vitis/xcl2.cc)
     # Target lib: vta_fsim
     add_library(vta_fsim SHARED ${FSIM_RUNTIME_SRCS})
     target_include_directories(vta_fsim PUBLIC vta/include)
+    set_vitis("ON")
+    if(_set_vitis)
+      message("\t VITIS ON!")
+      target_include_directories(vta_fsim PUBLIC ${VITIS_OPENCL_INCLUDE})
+      target_include_directories(vta_fsim PUBLIC ${VITIS_VIVADO_INCLUDE})
+    endif()
+
     foreach(__def ${VTA_DEFINITIONS})
       string(SUBSTRING ${__def} 3 -1 __strip_def)
       target_compile_definitions(vta_fsim PUBLIC ${__strip_def})
     endforeach()
     include_directories("vta/include")
-    if(APPLE)
-      set_target_properties(vta_fsim PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
-    endif(APPLE)
     target_compile_definitions(vta_fsim PUBLIC USE_FSIM_TLPP)
+
   endif()
 
   # Cycle accurate simulator driver build

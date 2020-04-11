@@ -22,8 +22,14 @@
 #ifndef VTA_VITIS_ALVEO_DRIVER_H_
 #define VTA_VITIS_ALVEO_DRIVER_H_
 
+#ifdef __cplusplus
+extern "C" {
 #include <vta/xcl2.h>
 #include <algorithm>
 #include <vector>
+#endif
 
+#ifdef __cplusplus
+}
+#endif
 #endif
