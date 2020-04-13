@@ -555,14 +555,13 @@ PRAGMA_HLS(array_reshape variable=wgt_mem block factor=2 dim=WGT_RESHAPE_FACTOR)
 PRAGMA_HLS(array_reshape variable=out_mem block factor=2 dim=OUT_RESHAPE_FACTOR)
 
   uint32_t done = 0;
+  uint32_t* done_ptr = &done;
 #pragma HLS dataflow
-  fetch(insn_count, insns, load_queue, gemm_queue, store_queue);
-  load(inputs, weights, load_queue, g2l_dep_queue, l2g_dep_queue, inp_mem, wgt_mem);
-  compute(done,uops, biases, gemm_queue, l2g_dep_queue, s2g_dep_queue,
-      g2l_dep_queue, g2s_dep_queue, inp_mem, wgt_mem, out_mem);
-  store(outputs, store_queue, g2s_dep_queue, s2g_dep_queue, out_mem);
-
-  if(done == 1) {
-    return;
+  while (!done) {
+    fetch(insn_count, insns, load_queue, gemm_queue, store_queue);
+    load(inputs, weights, load_queue, g2l_dep_queue, l2g_dep_queue, inp_mem, wgt_mem);
+    compute(done_ptr,uops, biases, gemm_queue, l2g_dep_queue, s2g_dep_queue,
+        g2l_dep_queue, g2s_dep_queue, inp_mem, wgt_mem, out_mem);
+    store(outputs, store_queue, g2s_dep_queue, s2g_dep_queue, out_mem);
   }
 }

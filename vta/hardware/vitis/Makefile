@@ -1,106 +1,176 @@
-############## Command Wrappers ################
-COPY = cp -rf
-MKDIR = mkdir -p
+.PHONY: help
 
-############### Directory Vars #################
-# hw / hw_emu / sw_emu
-TARGET := hw
-HOST_ARCH := x86
-DEVICE = xilinx_u280_xdma_201920_1
+help::
+	$(ECHO) "Makefile Usage:"
+	$(ECHO) "  make all TARGET=<sw_emu/hw_emu/hw> DEVICE=<FPGA platform> HOST_ARCH=<aarch32/aarch64/x86> SYSROOT=<sysroot_path>"
+	$(ECHO) "      Command to generate the design for specified Target and Shell."
+	$(ECHO) "      By default, HOST_ARCH=x86. HOST_ARCH and SYSROOT is required for SoC shells"
+	$(ECHO) ""
+	$(ECHO) "  make clean "
+	$(ECHO) "      Command to remove the generated non-hardware files."
+	$(ECHO) ""
+	$(ECHO) "  make cleanall"
+	$(ECHO) "      Command to remove all the generated files."
+	$(ECHO) ""
+	$(ECHO)  "  make test DEVICE=<FPGA platform>"
+	$(ECHO)  "     Command to run the application. This is same as 'check' target but does not have any makefile dependency."
+	$(ECHO)  ""
+	$(ECHO) "  make sd_card TARGET=<sw_emu/hw_emu/hw> DEVICE=<FPGA platform> HOST_ARCH=<aarch32/aarch64/x86> SYSROOT=<sysroot_path>"
+	$(ECHO) "      Command to prepare sd_card files."
+	$(ECHO) "      By default, HOST_ARCH=x86. HOST_ARCH and SYSROOT is required for SoC shells"
+	$(ECHO) ""
+	$(ECHO) "  make check TARGET=<sw_emu/hw_emu/hw> DEVICE=<FPGA platform> HOST_ARCH=<aarch32/aarch64/x86> SYSROOT=<sysroot_path>"
+	$(ECHO) "      Command to run application in emulation."
+	$(ECHO) "      By default, HOST_ARCH=x86. HOST_ARCH and SYSROOT is required for SoC shells"
+	$(ECHO) ""
+	$(ECHO) "  make build TARGET=<sw_emu/hw_emu/hw> DEVICE=<FPGA platform> HOST_ARCH=<aarch32/aarch64/x86> SYSROOT=<sysroot_path>"
+	$(ECHO) "      Command to build xclbin application."
+	$(ECHO) "      By default, HOST_ARCH=x86. HOST_ARCH and SYSROOT is required for SoC shells"
+	$(ECHO) ""
 
-
+# Points to top directory of Git repository
 PWD = $(shell readlink -f .)
-XILINX_PROVIDED = $(PWD)/xilinx
-FPGA_DIR = $(PWD)/fpga
-HOST_DIR = $(PWD)/host
+XILINX_PROVIDED = $(shell readlink -f ./xilinx)
 
-BUILD_DIR = $(PWD)/build
-BUILD_TEMP = $(PWD)/temp_$(TARGET)
-EMCONFIG_DIR = $(BUILD_TEMP)
-
-
-############### Compile Setup #################
-VPP := v++
+TARGET := sw_emu
+HOST_ARCH := x86
+SYSROOT :=
 
 include $(XILINX_PROVIDED)/utils.mk
-include $(XILINX_PROVIDED)/xcl2/xcl2.mk
+
+XSA := $(call device2xsa, $(DEVICE))
+TEMP_DIR := ./_x.$(TARGET).$(XSA)
+BUILD_DIR := ./build_dir.$(TARGET).$(XSA)
+
+VPP := v++
+SDCARD := sd_card
+
+#Include Libraries
 include $(XILINX_PROVIDED)/opencl/opencl.mk
-
-VTA_CONFIG := $(realpath $($(CURDIR)/../../config/vta_config.py))
-
+include $(XILINX_PROVIDED)/xcl2/xcl2.mk
 CXXFLAGS += $(xcl2_CXXFLAGS)
+LDFLAGS += $(xcl2_LDFLAGS)
+HOST_SRCS += $(xcl2_SRCS)
 CXXFLAGS += $(opencl_CXXFLAGS) -Wall -O0 -g -std=c++11
-CXXFLAGS += -fmessage-length=0
-# to use c defines in the config script
-# CXXFLAGS += $(shell python ${VTA_CONFIG} --cflags)
-CXXFLAGS += -DINP_RESHAPE_FACTOR 2 \
-	    -DOUT_RESHAPE_FACTOR 2 \
-	    -DWGT_RESHAPE_FACTOR 2
-
-LDFLAGS += $(xcl2_LDFALGS)
 LDFLAGS += $(opencl_LDFLAGS)
+
+HOST_DIR = $(shell readlink -f ./host)
+HOST_SRCS += $(HOST_DIR)/test_host.cc
+
+KERNEL_DIR = $(shell readlink -f ./fpga)
+
+# Host compiler global settings
+CXXFLAGS += -fmessage-length=0
 LDFLAGS += -lrt -lstdc++
 
+ifneq ($(HOST_ARCH), x86)
+	LDFLAGS += --sysroot=$(SYSROOT)
+endif
+
+# Kernel compiler global settings
 CLFLAGS += -t $(TARGET) --platform $(DEVICE) --save-temps
 ifneq ($(TARGET), hw)
-		CLFLAGS += -g
+	CLFLAGS += -g
 endif
 
+EXECUTABLE = test_host
+CMD_ARGS = $(BUILD_DIR)/vta.xclbin
+EMCONFIG_DIR = $(TEMP_DIR)
+EMU_DIR = $(SDCARD)/data/emulation
 
-############### Result Vars #################
-HOST_NAME += test_host
-HOST_SRC += $(xcl2_SRCS)
-HOST_SRC += $(HOST_DIR)/$(HOST_NAME).cc
+BINARY_CONTAINERS += $(BUILD_DIR)/vta.xclbin
+BINARY_CONTAINER_vta_OBJS += $(TEMP_DIR)/vta.xo
 
-
-############### Compile ###############
-check:
-		$(ECHO) "$(HOST_SRC)"
+CP = cp -rf
 
 .PHONY: all clean cleanall docs emconfig
-all: check-devices host kernel emconfig
+all: check-devices $(EXECUTABLE) $(BINARY_CONTAINERS) emconfig sd_card
 
-.PHONY: host
-host: $(HOST_NAME)
-$(HOST_NAME): check-xrt $(HOST_SRC) $(HOST_HDRS)
-	$(CXX) $(CXXFLAGS) $(HOST_SRC) $(HOST_HDRS) -o '$@' $(LDFLAGS)
+.PHONY: exe
+exe: $(EXECUTABLE)
 
+.PHONY: build
+build: $(BINARY_CONTAINERS)
 
-KERNEL_NAME = vta
-KERNEL_SOURCE += $(FPGA_DIR)/$(KERNEL_NAME).cc
-KERNEL_OBJECT += $(BUILD_TEMP)/$(KERNEL_NAME).xo
-KERNEL_CONTAINER += $(BUILD_DIR)/$(KERNEL_NAME).xclbin
+# Building kernel
+$(TEMP_DIR)/vta.xo: $(KERNEL_DIR)/vta.cc
+	mkdir -p $(TEMP_DIR)
+	$(VPP) $(CLFLAGS) --temp_dir $(TEMP_DIR) -c -k vta -I'$(<D)' -o'$@' '$<'
+$(BUILD_DIR)/vta.xclbin: $(BINARY_CONTAINER_vta_OBJS)
+	mkdir -p $(BUILD_DIR)
+	$(VPP) $(CLFLAGS) --temp_dir $(BUILD_DIR) -l $(LDCLFLAGS) -o'$@' $(+)
 
-.PHONY: kernel
-kernel: $(KERNEL_CONTAINER)
-$(KERNEL_OBJECT): $(KERNEL_SOURCE)
-	$(MKDIR) $(BUILD_TEMP)
-	$(VPP) $(CLFLAGS) --jobs 4 --temp_dir $(BUILD_TEMP) -c -k $(KERNEL_NAME) \
-		-I'$(<D)' -o'$@' '$<'
-$(KERNEL_CONTAINER): $(KERNEL_OBJECT)
-	$(MKDIR) $(BUILD_DIR)
-	$(VPP) $(CLFLAGS) --jobs 4 --temp_dir $(BUILD_DIR) -l $(LDCFLAGS) -o'$@' $(+)
+# Building Host
+$(EXECUTABLE): check-xrt $(HOST_SRCS) $(HOST_HDRS)
+	echo builing host
+	$(CXX) $(CXXFLAGS) $(HOST_SRCS) $(HOST_HDRS) -o '$@' $(LDFLAGS)
 
-emconfig: $(EMCONFIG_DIR)/emconfig.json
-	$(EMCONFIG_DIR)/emconfig.json:
-		emconfigutil --platform $(DEVICE) --od $(EMCONFIG_DIR)
+emconfig:$(EMCONFIG_DIR)/emconfig.json
+$(EMCONFIG_DIR)/emconfig.json:
+	emconfigutil --platform $(DEVICE) --od $(EMCONFIG_DIR)
 
-test: all
+check: all
 ifeq ($(TARGET),$(filter $(TARGET),sw_emu hw_emu))
-	cp -rf $(BUILD_TEMP)/emconfig.json .
-	XCL_EMULATION_MODE=$(TARGET) ./$(HOST_NAME) $(KERNEL_BITSTREAM)
-	./$(EXECUTABLE) $(BUILD_DIR)/vadd.xclbin
-	perf_analyze profile -i profile_summary.csv -f html
+ifeq ($(HOST_ARCH), x86)
+	$(CP) $(EMCONFIG_DIR)/emconfig.json .
+	XCL_EMULATION_MODE=$(TARGET) ./$(EXECUTABLE) $(BUILD_DIR)/vta.xclbin
+else
+	mkdir -p $(EMU_DIR)
+	$(CP) $(XILINX_VITIS)/data/emulation/unified $(EMU_DIR)
+	mkfatimg $(SDCARD) $(SDCARD).img 500000
+	launch_emulator -no-reboot -runtime ocl -t $(TARGET) -sd-card-image $(SDCARD).img -device-family $(DEV_FAM)
+endif
+else
+ifeq ($(HOST_ARCH), x86)
+	./$(EXECUTABLE) $(BUILD_DIR)/vta.xclbin
+endif
 endif
 
+.PHONY: test
+test: $(EXECUTABLE)
+ifeq ($(TARGET),$(filter $(TARGET),sw_emu hw_emu))
+ifeq ($(HOST_ARCH), x86)
+	XCL_EMULATION_MODE=$(TARGET) ./$(EXECUTABLE) $(BUILD_DIR)/vta.xclbin
+else
+	mkdir -p $(EMU_DIR)
+	$(CP) $(XILINX_VITIS)/data/emulation/unified $(EMU_DIR)
+	mkfatimg $(SDCARD) $(SDCARD).img 500000
+	launch_emulator -no-reboot -runtime ocl -t $(TARGET) -sd-card-image $(SDCARD).img -device-family $(DEV_FAM)
+endif
+else
+ifeq ($(HOST_ARCH), x86)
+	./$(EXECUTABLE) $(BUILD_DIR)/vta.xclbin
+else
+	$(ECHO) "Please copy the content of sd_card folder and data to an SD Card and run on the board"
+endif
+endif
+
+
+sd_card: $(EXECUTABLE) $(BINARY_CONTAINERS) emconfig
+ifneq ($(HOST_ARCH), x86)
+	mkdir -p $(SDCARD)/$(BUILD_DIR)
+	$(CP) $(B_NAME)/sw/$(XSA)/boot/generic.readme $(B_NAME)/sw/$(XSA)/xrt/image/* xrt.ini $(EXECUTABLE) $(SDCARD)
+	$(CP) $(BUILD_DIR)/*.xclbin $(SDCARD)/$(BUILD_DIR)/
+ifeq ($(TARGET),$(filter $(TARGET),sw_emu hw_emu))
+	$(ECHO) 'cd /mnt/' >> $(SDCARD)/init.sh
+	$(ECHO) 'export XILINX_VITIS=$$PWD' >> $(SDCARD)/init.sh
+	$(ECHO) 'export XCL_EMULATION_MODE=$(TARGET)' >> $(SDCARD)/init.sh
+	$(ECHO) './$(EXECUTABLE) $(CMD_ARGS)' >> $(SDCARD)/init.sh
+	$(ECHO) 'reboot' >> $(SDCARD)/init.sh
+else
+	[ -f $(SDCARD)/BOOT.BIN ] && echo "INFO: BOOT.BIN already exists" || $(CP) $(BUILD_DIR)/sd_card/BOOT.BIN $(SDCARD)/
+	$(ECHO) 'cd /mnt/' >> $(SDCARD)/init.sh
+	$(ECHO) './$(EXECUTABLE) $(CMD_ARGS)' >> $(SDCARD)/init.sh
+endif
+endif
+
+# Cleaning stuff
 clean:
-	-$(RMDIR) $(HOST_NAME) $(XCLBIN)/{*sw_emu*,*hw_emu*}
+	-$(RMDIR) $(EXECUTABLE) $(XCLBIN)/{*sw_emu*,*hw_emu*}
 	-$(RMDIR) profile_* TempConfig system_estimate.xtxt *.rpt *.csv
-	-$(RMDIR) $(HOST_DIR)/*.ll *v++* .Xil emconfig.json dltmp* xmltmp* *.log \
-		*.jou *.wcfg *.wdb
+	-$(RMDIR) src/*.ll *v++* .Xil emconfig.json dltmp* xmltmp* *.log *.jou *.wcfg *.wdb
 
 cleanall: clean
-	-$(RMDIR) $(BUILD_DIR) $(BUILD_TEMP)
-	-$(RMDIR) _x.* *xclbin.run_summary qemu-memory-_* emulation/ _vimage/ \
-		pl* start_simulation.sh *.xclbin
+	-$(RMDIR) build_dir* sd_card*
+	-$(RMDIR) _x.* *xclbin.run_summary qemu-memory-_* emulation/ _vimage/ pl* start_simulation.sh *.xclbin
 

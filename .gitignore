@@ -239,3 +239,6 @@ vta/hardware/vitis/build
 vta/hardware/vitis/temp*
 vta/hardware/vitis/*.log
 vta/hardware/vitis/.Xil
+vta/hardware/vitis/build**
+vta/hardware/vitis/test_host
+vta/hardware/vitis/_x**
