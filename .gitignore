@@ -242,3 +242,4 @@ vta/hardware/vitis/.Xil
 vta/hardware/vitis/build**
 vta/hardware/vitis/test_host
 vta/hardware/vitis/_x**
+vta/hardware/vitis/.**
