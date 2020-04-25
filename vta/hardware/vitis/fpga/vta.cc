@@ -520,14 +520,14 @@ void vta(
     volatile bus_T *weights,
     volatile bus_T *biases,
     volatile bus_T *outputs) {
-#pragma HLS  INTERFACE s_axilite  port=insn_count  bundle=CONTROL_BUS
+#pragma HLS  INTERFACE s_axilite  port=insn_count  bundle=control
 #pragma HLS  INTERFACE m_axi  port=insns  offset=slave  bundle=ins_port
 #pragma HLS  INTERFACE m_axi  port=uops  offset=slave  bundle=uop_port
 #pragma HLS  INTERFACE m_axi  port=inputs  offset=slave  bundle=input_port
 #pragma HLS  INTERFACE m_axi  port=weights  offset=slave  bundle=weight_port
 #pragma HLS  INTERFACE m_axi  port=biases  offset=slave  bundle=bias_port
 #pragma HLS  INTERFACE m_axi  port=outputs  offset=slave  bundle=output_port
-#pragma HLS  INTERFACE s_axilite  port=return  bundle=CONTROL_BUS
+#pragma HLS  INTERFACE s_axilite  port=return  bundle=control
   // Instatiate physical instruction queues
   static hls::stream<insn_T> load_queue("load_q");
 PRAGMA_HLS(stream variable=load_queue depth=STREAM_IN_DEPTH)
@@ -561,8 +561,4 @@ PRAGMA_HLS(array_reshape variable=out_mem block factor=2 dim=OUT_RESHAPE_FACTOR)
   compute(done,uops, biases, gemm_queue, l2g_dep_queue, s2g_dep_queue,
       g2l_dep_queue, g2s_dep_queue, inp_mem, wgt_mem, out_mem);
   store(outputs, store_queue, g2s_dep_queue, s2g_dep_queue, out_mem);
-
-  if(done == 1) {
-    return;
-  }
 }

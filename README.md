@@ -15,33 +15,79 @@
 <!--- specific language governing permissions and limitations -->
 <!--- under the License. -->
 
-<img src=https://raw.githubusercontent.com/apache/incubator-tvm-site/master/images/logo/tvm-logo-small.png width=128/> Open Deep Learning Compiler Stack
-==============================================
-[Documentation](https://docs.tvm.ai) |
-[Contributors](CONTRIBUTORS.md) |
-[Community](https://tvm.apache.org/community) |
-[Release Notes](NEWS.md)
+# CS 8803 Project Submission
+## Environment
+The technical stack we used can be compatible with different platforms such as
+Windows, OS X, and Linux. However, we recommend you to use Ubuntu for
+reproducing the result.
 
-[![Build Status](https://ci.tvm.ai/buildStatus/icon?job=tvm/master)](https://ci.tvm.ai/job/tvm/job/master/)
-[![Azure Pipeline](https://dev.azure.com/tvmai/tvm/_apis/build/status/windows_mac_build?branchName=master)](https://dev.azure.com/tvmai/tvm/_build/latest?definitionId=2&branchName=master)
+## Installation
+### Xilinx Vitis Installation
+For running this repo, you need to install Xilinx Vitis platform. Go to this
+link https://bit.ly/3cOZeQn and follow the instructions to install Xilinx Vitis
+Platform. Please install the Vitis 2019.2 version to reproduce the result. It
+may take about an hour to install Vitis.
 
-Apache TVM (incubating) is a compiler stack for deep learning systems. It is designed to close the gap between the
-productivity-focused deep learning frameworks, and the performance- and efficiency-focused hardware backends.
-TVM works with deep learning frameworks to provide end to end compilation to different backends.
+After installing Vitis, environment variables need to be set. The below path is
+an example. Based on your Vitis installation path, please set the proper
+environment variables.
 
-License
--------
-© Contributors Licensed under an [Apache-2.0](LICENSE) license.
+```bash
+source /tools/reconfig/xilinx/Vitis/Vitis/2019.2/settings64.sh
+export XILINX_XRT=/opt/xilinx/xrt
+export XCL_EMULATION_MODE=sw_emu
+export PATH=/opt/xilinx/xrt/bin:$PATH
+export LD_LIBRARY_PATH=/opt/xilinx/xrt/lib:$LD_LIBRARY_PATH
+export PYTHONPATH=/opt/xilinx/xrt/python:$PYTHONPATH
+```
 
-Contribute to TVM
------------------
-TVM adopts apache committer model, we aim to create an open source project that is maintained and owned by the community.
-Checkout the [Contributor Guide](https://docs.tvm.ai/contribute/)
+### Install TVM and VTA
+To install TVM & VTA, follow the instructions below.
 
-Acknowledgement
----------------
-We learned a lot from the following projects when building TVM.
-- [Halide](https://github.com/halide/Halide): TVM uses [HalideIR](https://github.com/dmlc/HalideIR) as data structure for
-  arithmetic simplification and low level lowering. We also learned and adapted some part of lowering pipeline from Halide.
-- [Loopy](https://github.com/inducer/loopy): use of integer set analysis and its loop transformation primitives.
-- [Theano](https://github.com/Theano/Theano): the design inspiration of symbolic scan operator for recurrence.
+```bash
+# Clone the repository
+git clone --recursive https://github.com/jheo4/incubator-tvm tvm
+cd tvm
+git submodule init
+git submodule update
+
+# Install dependencies and build the shared libs
+sudo apt-get update
+sudo apt-get install -y python3 python3-dev python3-setuptools gcc \
+          libtinfo-dev zlib1g-dev build-essential cmake libedit-dev libxml2-dev
+
+git checkout CS8803
+mkdir build
+cp cmake/config.cmake build
+cd build
+cmake ..
+make -j8
+
+
+# After install TVM from the source, set up the python interface
+# TVM and VTA are based on the python3, please use Python3
+export TVM_HOME=/path/to/tvm
+export PYTHONPATH=$TVM_HOME/python:$TVM_HOME/topi/python:${PYTHONPATH}
+export PYTHONPATH=$TVM_HOME/vta/python:${PYTHONPATH}
+```
+
+### Run Example
+This example is to reproduce the demo video I submitted.
+```bash
+# compile the instruction bitstream
+cd $TVM_HOME/vta/hardware/vitis/test
+make build
+# open the vitis_driver codes and modify the xclbin path to the generated
+#    bitstream.
+# vitis/vitis_driver.cc:69:  std::string binaryFile="YOUR_TVM_HOME/vta/hardware/vitis/test/build_dir.sw_emu.xilinx_u280_xdma_201920_1/vadd.xclbin";
+vim $TVM_HOME/vta/src/vitis/vitis_driver.cc
+cd $TVM_HOME/build && make -j8
+
+# setup the example environment
+sudo apt install virtualenv
+cd $TVM_HOME/cs8803
+virtualenv venv --python=python3
+. ./venv/bin/activate
+pip install -r requirements.txt
+python example.py
+```

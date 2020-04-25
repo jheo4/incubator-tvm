@@ -12,9 +12,6 @@ help::
 	$(ECHO) "  make cleanall"
 	$(ECHO) "      Command to remove all the generated files."
 	$(ECHO) ""
-	$(ECHO)  "  make test DEVICE=<FPGA platform>"
-	$(ECHO)  "     Command to run the application. This is same as 'check' target but does not have any makefile dependency."
-	$(ECHO)  ""
 	$(ECHO) "  make sd_card TARGET=<sw_emu/hw_emu/hw> DEVICE=<FPGA platform> HOST_ARCH=<aarch32/aarch64/x86> SYSROOT=<sysroot_path>"
 	$(ECHO) "      Command to prepare sd_card files."
 	$(ECHO) "      By default, HOST_ARCH=x86. HOST_ARCH and SYSROOT is required for SoC shells"
@@ -29,14 +26,16 @@ help::
 	$(ECHO) ""
 
 # Points to top directory of Git repository
+COMMON_REPO = ../
 PWD = $(shell readlink -f .)
-XILINX_PROVIDED = $(shell readlink -f ./xilinx)
+ABS_COMMON_REPO = $(shell readlink -f $(COMMON_REPO))
 
 TARGET := sw_emu
 HOST_ARCH := x86
 SYSROOT :=
+DEVICE = xilinx_u280_xdma_201920_1
 
-include $(XILINX_PROVIDED)/utils.mk
+include ./utils.mk
 
 XSA := $(call device2xsa, $(DEVICE))
 TEMP_DIR := ./_x.$(TARGET).$(XSA)
@@ -46,18 +45,15 @@ VPP := v++
 SDCARD := sd_card
 
 #Include Libraries
-include $(XILINX_PROVIDED)/opencl/opencl.mk
-include $(XILINX_PROVIDED)/xcl2/xcl2.mk
+include $(ABS_COMMON_REPO)/common/includes/opencl/opencl.mk
+include $(ABS_COMMON_REPO)/common/includes/xcl2/xcl2.mk
 CXXFLAGS += $(xcl2_CXXFLAGS)
 LDFLAGS += $(xcl2_LDFLAGS)
 HOST_SRCS += $(xcl2_SRCS)
 CXXFLAGS += $(opencl_CXXFLAGS) -Wall -O0 -g -std=c++11
 LDFLAGS += $(opencl_LDFLAGS)
 
-HOST_DIR = $(shell readlink -f ./host)
-HOST_SRCS += $(HOST_DIR)/test_host.cc
-
-KERNEL_DIR = $(shell readlink -f ./fpga)
+HOST_SRCS += src/host.cpp
 
 # Host compiler global settings
 CXXFLAGS += -fmessage-length=0
@@ -73,13 +69,15 @@ ifneq ($(TARGET), hw)
 	CLFLAGS += -g
 endif
 
-EXECUTABLE = test_host
-CMD_ARGS = $(BUILD_DIR)/vta.xclbin
+
+
+EXECUTABLE = host
+CMD_ARGS = $(BUILD_DIR)/vadd.xclbin
 EMCONFIG_DIR = $(TEMP_DIR)
 EMU_DIR = $(SDCARD)/data/emulation
 
-BINARY_CONTAINERS += $(BUILD_DIR)/vta.xclbin
-BINARY_CONTAINER_vta_OBJS += $(TEMP_DIR)/vta.xo
+BINARY_CONTAINERS += $(BUILD_DIR)/vadd.xclbin
+BINARY_CONTAINER_vadd_OBJS += $(TEMP_DIR)/vadd.xo
 
 CP = cp -rf
 
@@ -93,16 +91,18 @@ exe: $(EXECUTABLE)
 build: $(BINARY_CONTAINERS)
 
 # Building kernel
-$(TEMP_DIR)/vta.xo: $(KERNEL_DIR)/vta.cc
+$(TEMP_DIR)/vadd.xo: src/vadd.cpp
 	mkdir -p $(TEMP_DIR)
 	$(VPP) $(CLFLAGS) --temp_dir $(TEMP_DIR) -c -k vta -I'$(<D)' -o'$@' '$<'
-$(BUILD_DIR)/vta.xclbin: $(BINARY_CONTAINER_vta_OBJS)
+$(BUILD_DIR)/vadd.xclbin: $(BINARY_CONTAINER_vadd_OBJS)
 	mkdir -p $(BUILD_DIR)
 	$(VPP) $(CLFLAGS) --temp_dir $(BUILD_DIR) -l $(LDCLFLAGS) -o'$@' $(+)
 
 # Building Host
+host:
 $(EXECUTABLE): check-xrt $(HOST_SRCS) $(HOST_HDRS)
-	echo builing host
+	$(ECHO) "xcl2_SRCS:: $(xcl2_SRCS)"
+
 	$(CXX) $(CXXFLAGS) $(HOST_SRCS) $(HOST_HDRS) -o '$@' $(LDFLAGS)
 
 emconfig:$(EMCONFIG_DIR)/emconfig.json
@@ -113,7 +113,7 @@ check: all
 ifeq ($(TARGET),$(filter $(TARGET),sw_emu hw_emu))
 ifeq ($(HOST_ARCH), x86)
 	$(CP) $(EMCONFIG_DIR)/emconfig.json .
-	XCL_EMULATION_MODE=$(TARGET) ./$(EXECUTABLE) $(BUILD_DIR)/vta.xclbin
+	XCL_EMULATION_MODE=$(TARGET) ./$(EXECUTABLE) $(BUILD_DIR)/vadd.xclbin
 else
 	mkdir -p $(EMU_DIR)
 	$(CP) $(XILINX_VITIS)/data/emulation/unified $(EMU_DIR)
@@ -122,29 +122,12 @@ else
 endif
 else
 ifeq ($(HOST_ARCH), x86)
-	./$(EXECUTABLE) $(BUILD_DIR)/vta.xclbin
+	./$(EXECUTABLE) $(BUILD_DIR)/vadd.xclbin
 endif
 endif
-
-.PHONY: test
-test: $(EXECUTABLE)
-ifeq ($(TARGET),$(filter $(TARGET),sw_emu hw_emu))
 ifeq ($(HOST_ARCH), x86)
-	XCL_EMULATION_MODE=$(TARGET) ./$(EXECUTABLE) $(BUILD_DIR)/vta.xclbin
-else
-	mkdir -p $(EMU_DIR)
-	$(CP) $(XILINX_VITIS)/data/emulation/unified $(EMU_DIR)
-	mkfatimg $(SDCARD) $(SDCARD).img 500000
-	launch_emulator -no-reboot -runtime ocl -t $(TARGET) -sd-card-image $(SDCARD).img -device-family $(DEV_FAM)
+	perf_analyze profile -i profile_summary.csv -f html
 endif
-else
-ifeq ($(HOST_ARCH), x86)
-	./$(EXECUTABLE) $(BUILD_DIR)/vta.xclbin
-else
-	$(ECHO) "Please copy the content of sd_card folder and data to an SD Card and run on the board"
-endif
-endif
-
 
 sd_card: $(EXECUTABLE) $(BINARY_CONTAINERS) emconfig
 ifneq ($(HOST_ARCH), x86)
@@ -159,7 +142,6 @@ ifeq ($(TARGET),$(filter $(TARGET),sw_emu hw_emu))
 	$(ECHO) 'reboot' >> $(SDCARD)/init.sh
 else
 	[ -f $(SDCARD)/BOOT.BIN ] && echo "INFO: BOOT.BIN already exists" || $(CP) $(BUILD_DIR)/sd_card/BOOT.BIN $(SDCARD)/
-	$(ECHO) 'cd /mnt/' >> $(SDCARD)/init.sh
 	$(ECHO) './$(EXECUTABLE) $(CMD_ARGS)' >> $(SDCARD)/init.sh
 endif
 endif
